@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "utilities.h": "c",
+        "shake_prf.h": "c",
+        "types.h": "c"
+    }
+}

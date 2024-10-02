@@ -1,0 +1,10 @@
+Debug
+Drivers
+Middlewares
+USB_HOST
+.cproject
+.mxproject
+bike-disc.ioc
+bike-disc.launch
+STM32F407VGTX_FLASH.ld
+STM32F407VGTX_RAM.ld
