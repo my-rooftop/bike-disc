@@ -115,9 +115,9 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-	struct Trace_time keygen_time = {0, 0, 0};
-	// struct Trace_time encap_time = {0, 0, 0};
-	struct Trace_time decap_time = {0, 0, 0};
+	struct Trace_time keygen_time = {0, 0, 0, 0};
+	struct Trace_time encap_time = {0, 0, 0, 0};
+	struct Trace_time decap_time = {0, 0, 0, 0};
 
   /* USER CODE END 2 */
   uint32_t start_tick_keypair = 0;
@@ -148,7 +148,7 @@ int main(void)
       elapsed_time_keypair += end_tick_keypair - start_tick_keypair;
 
       start_tick_enc = HAL_GetTick();
-      crypto_kem_enc(ct, key1, pk);
+      crypto_kem_enc(ct, key1, pk, &encap_time);
       end_tick_enc = HAL_GetTick();
       elapsed_time_enc += end_tick_enc - start_tick_enc;
 

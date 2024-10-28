@@ -86,19 +86,25 @@ _INLINE_ ret_t function_k(OUT ss_t *out, IN const m_t *m, IN const ct_t *ct)
 _INLINE_ ret_t encrypt(OUT ct_t *ct,
                        IN const pad_e_t *e,
                        IN const pk_t *pk,
-                       IN const m_t *m)
+                       IN const m_t *m,
+                       struct Trace_time *encap_time)
 {
+  uint32_t start_tick, end_tick;
   // Pad the public key and the ciphertext
   pad_r_t p_ct = {0};
   pad_r_t p_pk = {0};
   p_pk.val     = *pk;
-
+  
   // Generate the ciphertext
   // ct = pk * e1 + e0
   //gf2x_mod_mul(&p_ct, &e->val[1], &p_pk);
   //gf2x_mod_add(&p_ct, &p_ct, &e->val[0]);
+
+start_tick = HAL_GetTick();
 ring_mul(&p_ct, &e->val[1], &p_pk);
-  ring_add(&p_ct, &p_ct, &e->val[0]);
+end_tick = HAL_GetTick();
+encap_time->ring_mul += end_tick - start_tick;
+ring_add(&p_ct, &p_ct, &e->val[0]);
 
 
   ct->c0 = p_ct.val;
@@ -173,7 +179,11 @@ int crypto_kem_keypair(OUT unsigned char *pk, OUT unsigned char *sk, struct Trac
   end_tick = HAL_GetTick();
   keygen_time->gf2x_inv += end_tick - start_tick;
   //gf2x_mod_mul(&h, &h1, &h0inv);
+
+  start_tick = HAL_GetTick();
   ring_mul(&h, &h1, &h0inv);
+  end_tick = HAL_GetTick();
+  keygen_time->ring_mul += end_tick - start_tick;
 
   // Fill the secret key data structure with contents - cancel the padding
   l_sk.bin[0] = h0.val;
@@ -199,7 +209,8 @@ int crypto_kem_keypair(OUT unsigned char *pk, OUT unsigned char *sk, struct Trac
 //               ss is the shared secret.
 int crypto_kem_enc(OUT unsigned char *     ct,
                    OUT unsigned char *     ss,
-                   IN const unsigned char *pk)
+                   IN const unsigned char *pk,
+                   struct Trace_time *encap_time)
 {
   // Public values (they do not require cleanup on exit).
   pk_t l_pk;
@@ -221,7 +232,7 @@ int crypto_kem_enc(OUT unsigned char *     ct,
   GUARD(function_h(&e, &m));
 
   // Calculate the ciphertext
-  GUARD(encrypt(&l_ct, &e, &l_pk, &m));
+  GUARD(encrypt(&l_ct, &e, &l_pk, &m, encap_time));
 
   // Generate the shared secret
   GUARD(function_k(&l_ss, &m, &l_ct));

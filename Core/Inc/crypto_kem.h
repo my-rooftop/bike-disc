@@ -17,7 +17,8 @@ int crypto_kem_keypair( unsigned char *pk,  unsigned char *sk, struct Trace_time
 //              ss is the shared secret.
 int crypto_kem_enc( unsigned char *ct,
          unsigned char *ss,
-         const unsigned char *pk);
+         const unsigned char *pk,
+         struct Trace_time *encap_time);
 
 //Decapsulate - ct is a key encapsulation message (ciphertext),
 //              sk is the private key,

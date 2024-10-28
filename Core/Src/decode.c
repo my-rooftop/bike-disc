@@ -74,12 +74,17 @@
 
 ret_t compute_syndrome(OUT syndrome_t *syndrome,
                        IN const pad_r_t *c0,
-                       IN const mul_internal_t *th0)
+                       IN const mul_internal_t *th0,
+                       struct Trace_time *trace)
 {
   DEFER_CLEANUP(pad_r_t pad_s, pad_r_cleanup);
 
 //  gf2x_mod_mul(&pad_s, c0, h0);
+  uint32_t start_tick, end_tick;
+  start_tick = HAL_GetTick();
   ring_mul_rep(&pad_s, c0, th0);  // use precomputed input transform of h0
+  end_tick = HAL_GetTick();
+  trace->ring_mul += end_tick - start_tick;
 
   bike_memcpy((uint8_t *)syndrome->qw, pad_s.val.raw, R_BYTES);
   //dup(syndrome);
@@ -98,8 +103,10 @@ _INLINE_ ret_t recompute_syndrome(OUT syndrome_t *syndrome,
                                   IN const mul_internal_t *th0,
                                   //IN const pad_r_t *pk,
                                   IN const mul_internal_t *pk,
-                                  IN const e_t *e)
+                                  IN const e_t *e,
+                                  struct Trace_time *trace)
 {
+  uint32_t start_tick, end_tick;
   DEFER_CLEANUP(pad_r_t tmp_c0, pad_r_cleanup);
   DEFER_CLEANUP(pad_r_t e0 = {0}, pad_r_cleanup);
   DEFER_CLEANUP(pad_r_t e1 = {0}, pad_r_cleanup);
@@ -109,12 +116,15 @@ _INLINE_ ret_t recompute_syndrome(OUT syndrome_t *syndrome,
 
   // tmp_c0 = pk * e1 + c0 + e0
   //ring_mul(&tmp_c0, &e1, pk);
+  start_tick = HAL_GetTick();
   ring_mul_rep(&tmp_c0, &e1, pk);
+  end_tick = HAL_GetTick();
+  trace->ring_mul += end_tick - start_tick;
   ring_add(&tmp_c0, &tmp_c0, c0);
   ring_add(&tmp_c0, &tmp_c0, &e0);
 
   // Recompute the syndrome using the updated ciphertext
-  GUARD(compute_syndrome(syndrome, &tmp_c0, th0));
+  GUARD(compute_syndrome(syndrome, &tmp_c0, th0, trace));
 
   return SUCCESS;
 }
@@ -779,7 +789,7 @@ ret_t decode(OUT e_t *e, IN const ct_t *ct, IN const sk_t *sk, struct Trace_time
 
   DEFER_CLEANUP(syndrome_t s = {0}, syndrome_cleanup);
   DMSG("  Computing s.\n");
-  GUARD(compute_syndrome(&s, &c0, &th0));
+  GUARD(compute_syndrome(&s, &c0, &th0, decap_time));
   //dup(&s);
 
   // Reset (init) the error because it is xored in the find_err functions.
@@ -794,7 +804,7 @@ ret_t decode(OUT e_t *e, IN const ct_t *ct, IN const sk_t *sk, struct Trace_time
     DMSG("    Weight of syndrome: %lu\n", r_bits_vector_weight((r_t *)s.qw));
 
     find_err1(e, &black_e, &gray_e, &s, sk->wlist, threshold);
-    GUARD(recompute_syndrome(&s, &c0, &th0, &pk, e));
+    GUARD(recompute_syndrome(&s, &c0, &th0, &pk, e, decap_time));
 #if defined(BGF_DECODER)
     if(iter >= 1) {
       continue;
@@ -805,14 +815,14 @@ ret_t decode(OUT e_t *e, IN const ct_t *ct, IN const sk_t *sk, struct Trace_time
     DMSG("    Weight of syndrome: %lu\n", r_bits_vector_weight((r_t *)s.qw));
 
     find_err2(e, &black_e, &s, sk->wlist, ((D + 1) / 2) + 1);
-    GUARD(recompute_syndrome(&s, &c0, &th0, &pk, e));
+    GUARD(recompute_syndrome(&s, &c0, &th0, &pk, e, decap_time));
 
     DMSG("    Weight of e: %lu\n",
          r_bits_vector_weight(&e->val[0]) + r_bits_vector_weight(&e->val[1]));
     DMSG("    Weight of syndrome: %lu\n", r_bits_vector_weight((r_t *)s.qw));
 
     find_err2(e, &gray_e, &s, sk->wlist, ((D + 1) / 2) + 1);
-    GUARD(recompute_syndrome(&s, &c0, &th0, &pk, e));
+    GUARD(recompute_syndrome(&s, &c0, &th0, &pk, e, decap_time));
   }
 
   if(r_bits_vector_weight((r_t *)s.qw) > 0) {
