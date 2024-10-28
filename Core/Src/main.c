@@ -21,6 +21,7 @@
 #include "usb_host.h"
 #include "api.h"
 #include "crypto_kem.h"
+#include "profiling.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -113,17 +114,52 @@ int main(void)
   unsigned char key2[CRYPTO_BYTES];
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
+	struct Trace_time keygen_time = {0, 0, 0};
+	// struct Trace_time encap_time = {0, 0, 0};
+	struct Trace_time decap_time = {0, 0, 0};
+
+  /* USER CODE END 2 */
+  uint32_t start_tick_keypair = 0;
+  uint32_t end_tick_keypair = 0;
+  uint32_t elapsed_time_keypair = 0;
+  uint32_t start_tick_enc = 0;
+  uint32_t end_tick_enc = 0;
+  uint32_t elapsed_time_enc = 0;
+  uint32_t start_tick_dec = 0;
+  uint32_t end_tick_dec = 0;
+  uint32_t elapsed_time_dec = 0;
+  uint32_t total_start = 0;
+  uint32_t total_end = 0;
+  uint32_t elapsed_total = 0;
+  /* Infinite loop */
+
   while (1)
   {
     /* USER CODE END WHILE */
     MX_USB_HOST_Process();
+    total_start = HAL_GetTick();
 
+    for(int i = 0; i < 100; i++) {
+      
+      start_tick_keypair = HAL_GetTick();
+      crypto_kem_keypair(pk, sk, &keygen_time);
+      end_tick_keypair = HAL_GetTick();
+      elapsed_time_keypair += end_tick_keypair - start_tick_keypair;
 
-    crypto_kem_keypair(pk, sk);
+      start_tick_enc = HAL_GetTick();
+      crypto_kem_enc(ct, key1, pk);
+      end_tick_enc = HAL_GetTick();
+      elapsed_time_enc += end_tick_enc - start_tick_enc;
 
-    crypto_kem_enc(ct, key1, pk);
-    
-    crypto_kem_dec(key2, ct, sk);
+      start_tick_dec = HAL_GetTick();
+      crypto_kem_dec(key2, ct, sk, &decap_time);
+      end_tick_dec = HAL_GetTick();
+      elapsed_time_dec += end_tick_dec - start_tick_dec;
+    }
+    total_end = HAL_GetTick();
+    elapsed_total = total_end - total_start;
+
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */

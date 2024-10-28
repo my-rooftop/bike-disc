@@ -8,3 +8,6 @@ bike-disc.ioc
 bike-disc.launch
 STM32F407VGTX_FLASH.ld
 STM32F407VGTX_RAM.ld
+com.st*
+language.settings.xml*
+.vscode/*

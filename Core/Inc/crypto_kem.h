@@ -1,7 +1,7 @@
 
 #ifndef _CRYPTO_KEM_H_
 #define _CRYPTO_KEM_H_
-
+#include "profiling.h"
 
 
 
@@ -10,7 +10,7 @@
 ////////////////////////////////////////////////////////////////
 //Keygenerate - pk is the public key,
 //              sk is the private key,
-int crypto_kem_keypair( unsigned char *pk,  unsigned char *sk);
+int crypto_kem_keypair( unsigned char *pk,  unsigned char *sk, struct Trace_time *keygen_time);
 
 //Encapsulate - pk is the public key,
 //              ct is a key encapsulation message (ciphertext),
@@ -24,7 +24,8 @@ int crypto_kem_enc( unsigned char *ct,
 //              ss is the shared secret
 int crypto_kem_dec( unsigned char *ss,
          const unsigned char *ct,
-         const unsigned char *sk);
+         const unsigned char *sk,
+         struct Trace_time *decap_time);
 
 #endif
 

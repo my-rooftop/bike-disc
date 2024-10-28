@@ -11,8 +11,9 @@
 #pragma once
 
 #include "types.h"
+#include "profiling.h"
 
-ret_t decode(OUT e_t *e, IN const ct_t *ct, IN const sk_t *sk);
+ret_t decode(OUT e_t *e, IN const ct_t *ct, IN const sk_t *sk, struct Trace_time *decode_time);
 
 // Rotate right the first R_BITS of a syndrome.
 // At input, the syndrome is stored as three R_BITS triplicate.

@@ -14,6 +14,7 @@
 #include "gf2x.h"
 #include "sampling.h"
 #include "sha.h"
+#include "profiling.h"
 
 // m_t and seed_t have the same size and thus can be considered
 // to be of the same type. However, for security reasons we distinguish
@@ -135,8 +136,10 @@ _INLINE_ ret_t reencrypt(OUT m_t *m, IN const pad_e_t *e, IN const ct_t *l_ct)
 ////////////////////////////////////////////////////////////////////////////////
 // The three APIs below (keypair, encapsulate, decapsulate) are defined by NIST:
 ////////////////////////////////////////////////////////////////////////////////
-int crypto_kem_keypair(OUT unsigned char *pk, OUT unsigned char *sk)
+int crypto_kem_keypair(OUT unsigned char *pk, OUT unsigned char *sk, struct Trace_time *keygen_time)
 {
+  keygen_time->stack += 1;
+  uint32_t start_tick, end_tick;
   DEFER_CLEANUP(aligned_sk_t l_sk = {0}, sk_cleanup);
 
   // The secret key is (h0, h1),
@@ -165,9 +168,12 @@ int crypto_kem_keypair(OUT unsigned char *pk, OUT unsigned char *sk)
   convert_seed_to_m_type(&l_sk.sigma, &seeds.seed[1]);
 
   // Calculate the public key
+  start_tick = HAL_GetTick();
   gf2x_mod_inv(&h0inv, &h0);
+  end_tick = HAL_GetTick();
+  keygen_time->gf2x_inv += end_tick - start_tick;
   //gf2x_mod_mul(&h, &h1, &h0inv);
-ring_mul(&h, &h1, &h0inv);
+  ring_mul(&h, &h1, &h0inv);
 
   // Fill the secret key data structure with contents - cancel the padding
   l_sk.bin[0] = h0.val;
@@ -234,8 +240,10 @@ int crypto_kem_enc(OUT unsigned char *     ct,
 //               ss is the shared secret
 int crypto_kem_dec(OUT unsigned char *     ss,
                    IN const unsigned char *ct,
-                   IN const unsigned char *sk)
+                   IN const unsigned char *sk,
+                   struct Trace_time *decap_time)
 {
+  decap_time->stack += 1;
   // Public values, does not require a cleanup on exit
   ct_t l_ct;
 
@@ -262,7 +270,7 @@ int crypto_kem_dec(OUT unsigned char *     ss,
   memset( &e_prime, 0 , sizeof(e_prime) );
 
   // Decode and on success check if |e|=T (all in constant-time)
-  volatile uint32_t success_cond = (decode(&e, &l_ct, &l_sk) == SUCCESS);
+  volatile uint32_t success_cond = (decode(&e, &l_ct, &l_sk, decap_time) == SUCCESS);
 //  success_cond &= secure_cmp32(T, r_bits_vector_weight(&e.val[0]) +
 //                                    r_bits_vector_weight(&e.val[1]));
 
