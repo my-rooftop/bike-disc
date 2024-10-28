@@ -120,8 +120,12 @@ _INLINE_ ret_t recompute_syndrome(OUT syndrome_t *syndrome,
   ring_mul_rep(&tmp_c0, &e1, pk);
   end_tick = HAL_GetTick();
   trace->ring_mul += end_tick - start_tick;
+
+  start_tick = HAL_GetTick();
   ring_add(&tmp_c0, &tmp_c0, c0);
   ring_add(&tmp_c0, &tmp_c0, &e0);
+  end_tick = HAL_GetTick();
+  trace->ring_add += end_tick - start_tick;
 
   // Recompute the syndrome using the updated ciphertext
   GUARD(compute_syndrome(syndrome, &tmp_c0, th0, trace));

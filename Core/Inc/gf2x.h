@@ -8,6 +8,7 @@
 #pragma once
 
 #include "types.h"
+#include "profiling.h"
 
 // c = a+b mod (x^r - 1)
 _INLINE_ void
@@ -26,4 +27,4 @@ gf2x_mod_add(OUT pad_r_t *c, IN const pad_r_t *a, IN const pad_r_t *b)
 void gf2x_mod_mul(OUT pad_r_t *c, IN const pad_r_t *a, IN const pad_r_t *b);
 
 // c = a^-1 mod (x^r - 1)
-void gf2x_mod_inv(OUT pad_r_t *c, IN const pad_r_t *a);
+void gf2x_mod_inv(OUT pad_r_t *c, IN const pad_r_t *a, struct Trace_time *trace_time);

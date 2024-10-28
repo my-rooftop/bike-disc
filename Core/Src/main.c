@@ -115,9 +115,9 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-	struct Trace_time keygen_time = {0, 0, 0, 0};
-	struct Trace_time encap_time = {0, 0, 0, 0};
-	struct Trace_time decap_time = {0, 0, 0, 0};
+	struct Trace_time keygen_time = {0, 0, 0, 0, 0, 0};
+	struct Trace_time encap_time = {0, 0, 0, 0, 0, 0};
+	struct Trace_time decap_time = {0, 0, 0, 0, 0, 0};
 
   /* USER CODE END 2 */
   uint32_t start_tick_keypair = 0;

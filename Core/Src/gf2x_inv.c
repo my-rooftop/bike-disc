@@ -17,6 +17,7 @@
 #include "cleanup.h"
 #include "gf2x.h"
 #include "gf2x_internal.h"
+#include "profiling.h"
 
 #include "ring_ops.h"
 
@@ -144,8 +145,9 @@ bike_static_assert((R_BITS == 24659), gf2x_inv_r_doesnt_match_parameters);
 
 // Inversion in F_2[x]/(x^R - 1), [1](Algorithm 2).
 // c = a^{-1} mod x^r-1
-void gf2x_mod_inv(OUT pad_r_t *c, IN const pad_r_t *a)
+void gf2x_mod_inv(OUT pad_r_t *c, IN const pad_r_t *a, struct Trace_time *trace_time)
 {
+  uint32_t start, end;
   // Note that exp0/1_k/l are predefined constants that depend only on the value
   // of R. This value is public. Therefore, branches in this function, which
   // depends on R, are also "public". Code that releases these branches
@@ -171,11 +173,17 @@ void gf2x_mod_inv(OUT pad_r_t *c, IN const pad_r_t *a)
     } else {
       k_squaring(&g, &t, exp0_l[i]);
     }
+    start = HAL_GetTick();
     ring_mul(&t, &g, &t);
+    end = HAL_GetTick();
+    trace_time->inv_ring_mul += end - start;
 
     if(exp1_k[i] != 0) {
       repeated_squaring(&g, &t, exp1_k[i], &sec_buf);
+      start = HAL_GetTick();
       ring_mul_2(&t, &g, &ta);
+      end = HAL_GetTick();
+      trace_time->inv_ring_mul += end - start;
       //ring_mul(&t, &g, a);  /// XXX: use pre-computed input transform
     }
   }

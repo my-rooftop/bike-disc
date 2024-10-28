@@ -104,7 +104,11 @@ start_tick = HAL_GetTick();
 ring_mul(&p_ct, &e->val[1], &p_pk);
 end_tick = HAL_GetTick();
 encap_time->ring_mul += end_tick - start_tick;
+
+start_tick = HAL_GetTick();
 ring_add(&p_ct, &p_ct, &e->val[0]);
+end_tick = HAL_GetTick();
+encap_time->ring_add += end_tick - start_tick;
 
 
   ct->c0 = p_ct.val;
@@ -175,7 +179,7 @@ int crypto_kem_keypair(OUT unsigned char *pk, OUT unsigned char *sk, struct Trac
 
   // Calculate the public key
   start_tick = HAL_GetTick();
-  gf2x_mod_inv(&h0inv, &h0);
+  gf2x_mod_inv(&h0inv, &h0, keygen_time);
   end_tick = HAL_GetTick();
   keygen_time->gf2x_inv += end_tick - start_tick;
   //gf2x_mod_mul(&h, &h1, &h0inv);
@@ -213,6 +217,7 @@ int crypto_kem_enc(OUT unsigned char *     ct,
                    struct Trace_time *encap_time)
 {
   // Public values (they do not require cleanup on exit).
+  encap_time->stack += 1;
   pk_t l_pk;
   ct_t l_ct;
 
