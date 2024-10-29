@@ -4,6 +4,7 @@
         "shake_prf.h": "c",
         "types.h": "c",
         "profiling.h": "c",
-        "ring_ops.h": "c"
+        "ring_ops.h": "c",
+        "stdint.h": "c"
     }
 }

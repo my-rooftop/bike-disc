@@ -115,9 +115,9 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-	struct Trace_time keygen_time = {0, 0, 0, 0, 0, 0};
-	struct Trace_time encap_time = {0, 0, 0, 0, 0, 0};
-	struct Trace_time decap_time = {0, 0, 0, 0, 0, 0};
+	struct Trace_time keygen_time = {0, 0, 0, 0, 0};
+	struct Trace_time encap_time = {0, 0, 0, 0, 0};
+	struct Trace_time decap_time = {0, 0, 0, 0, 0};
 
   /* USER CODE END 2 */
   uint32_t start_tick_keypair = 0;
@@ -140,7 +140,7 @@ int main(void)
     MX_USB_HOST_Process();
     total_start = HAL_GetTick();
 
-    for(int i = 0; i < 100; i++) {
+    for(int i = 0; i < 10; i++) {
       
       start_tick_keypair = HAL_GetTick();
       crypto_kem_keypair(pk, sk, &keygen_time);

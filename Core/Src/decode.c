@@ -773,7 +773,6 @@ _INLINE_ void find_err2(OUT e_t *e,
 ret_t decode(OUT e_t *e, IN const ct_t *ct, IN const sk_t *sk, struct Trace_time *decap_time)
 {
   uint32_t start_tick, end_tick;
-  start_tick = HAL_GetTick();
   DEFER_CLEANUP(e_t black_e = {0}, e_cleanup);
   DEFER_CLEANUP(e_t gray_e = {0}, e_cleanup);
 
@@ -832,7 +831,5 @@ ret_t decode(OUT e_t *e, IN const ct_t *ct, IN const sk_t *sk, struct Trace_time
   if(r_bits_vector_weight((r_t *)s.qw) > 0) {
     BIKE_ERROR(E_DECODING_FAILURE);
   }
-  end_tick = HAL_GetTick();
-  decap_time->decode += end_tick - start_tick;
   return SUCCESS;
 }
