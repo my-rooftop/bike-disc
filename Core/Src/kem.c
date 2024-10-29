@@ -34,9 +34,11 @@ _INLINE_ void convert_m_to_seed_type(OUT seed_t *seed, IN const m_t *m)
 // (e0, e1) = H(m)
 _INLINE_ ret_t function_h(OUT pad_e_t *e, IN const m_t *m)
 {
+
   DEFER_CLEANUP(seed_t seed = {0}, seed_cleanup);
 
   convert_m_to_seed_type(&seed, m);
+
   return generate_error_vector(e, &seed);
 }
 
@@ -60,8 +62,11 @@ _INLINE_ ret_t function_l(OUT m_t *out, IN const pad_e_t *e)
 }
 
 // Generate the Shared Secret K(m, c0, c1)
-_INLINE_ ret_t function_k(OUT ss_t *out, IN const m_t *m, IN const ct_t *ct)
+_INLINE_ ret_t function_k(OUT ss_t *out, IN const m_t *m, IN const ct_t *ct, struct Trace_time *Trace_time)
 {
+  uint32_t start_tick, end_tick;
+
+  start_tick = HAL_GetTick();
   DEFER_CLEANUP(func_k_t tmp, func_k_cleanup);
   DEFER_CLEANUP(sha_dgst_t dgst = {0}, sha_dgst_cleanup);
 
@@ -76,7 +81,8 @@ _INLINE_ ret_t function_k(OUT ss_t *out, IN const m_t *m, IN const ct_t *ct)
   // to subsequently use it as a seed.
   bike_static_assert(sizeof(dgst) >= sizeof(*out), dgst_size_lt_out_size);
   bike_memcpy(out->raw, dgst.u.raw, sizeof(*out));
-
+  end_tick = HAL_GetTick();
+  Trace_time->k += end_tick - start_tick;
   return SUCCESS;
 }
 
@@ -114,12 +120,18 @@ encap_time->ring_add += end_tick - start_tick;
   ct->c0 = p_ct.val;
 
   // c1 = L(e0, e1)
+  start_tick = HAL_GetTick();
   GUARD(function_l(&ct->c1, e));
+  end_tick = HAL_GetTick();
+  encap_time->l += end_tick - start_tick;
 
   // m xor L(e0, e1)
+  start_tick = HAL_GetTick();
   for(size_t i = 0; i < sizeof(*m); i++) {
     ct->c1.raw[i] ^= m->raw[i];
   }
+  end_tick = HAL_GetTick();
+  encap_time->xor += end_tick - start_tick;
 
   print("e0: ", (const uint64_t *)PE0_RAW(e), R_BITS);
   print("e1: ", (const uint64_t *)PE1_RAW(e), R_BITS);
@@ -129,16 +141,23 @@ encap_time->ring_add += end_tick - start_tick;
   return SUCCESS;
 }
 
-_INLINE_ ret_t reencrypt(OUT m_t *m, IN const pad_e_t *e, IN const ct_t *l_ct)
+_INLINE_ ret_t reencrypt(OUT m_t *m, IN const pad_e_t *e, IN const ct_t *l_ct, struct Trace_time *decap_time)
 {
+  uint32_t start_tick, end_tick;
   DEFER_CLEANUP(m_t tmp, m_cleanup);
 
+  start_tick = HAL_GetTick();
   GUARD(function_l(&tmp, e));
+  end_tick = HAL_GetTick();
+  decap_time->l += end_tick - start_tick;
 
   // m' = c1 ^ L(e')
+  start_tick = HAL_GetTick();
   for(size_t i = 0; i < sizeof(*m); i++) {
     m->raw[i] = tmp.raw[i] ^ l_ct->c1.raw[i];
   }
+  end_tick = HAL_GetTick();
+  decap_time->xor += end_tick - start_tick;
 
   return SUCCESS;
 }
@@ -218,6 +237,7 @@ int crypto_kem_enc(OUT unsigned char *     ct,
 {
   // Public values (they do not require cleanup on exit).
   encap_time->stack += 1;
+  uint32_t start_tick, end_tick;
   pk_t l_pk;
   ct_t l_ct;
 
@@ -234,13 +254,17 @@ int crypto_kem_enc(OUT unsigned char *     ct,
 
   // e = H(m) = H(seed[0])
   convert_seed_to_m_type(&m, &seeds.seed[0]);
+  
+  start_tick = HAL_GetTick();
   GUARD(function_h(&e, &m));
+  end_tick = HAL_GetTick();
+  encap_time->h += end_tick - start_tick;
 
   // Calculate the ciphertext
   GUARD(encrypt(&l_ct, &e, &l_pk, &m, encap_time));
 
   // Generate the shared secret
-  GUARD(function_k(&l_ss, &m, &l_ct));
+  GUARD(function_k(&l_ss, &m, &l_ct, encap_time));
 
   print("ss: ", (uint64_t *)l_ss.raw, SIZEOF_BITS(l_ss));
 
@@ -260,6 +284,7 @@ int crypto_kem_dec(OUT unsigned char *     ss,
                    struct Trace_time *decap_time)
 {
   decap_time->stack += 1;
+  uint32_t start_tick, end_tick;
   // Public values, does not require a cleanup on exit
   ct_t l_ct;
 
@@ -286,7 +311,10 @@ int crypto_kem_dec(OUT unsigned char *     ss,
   memset( &e_prime, 0 , sizeof(e_prime) );
 
   // Decode and on success check if |e|=T (all in constant-time)
+  start_tick = HAL_GetTick();
   volatile uint32_t success_cond = (decode(&e, &l_ct, &l_sk, decap_time) == SUCCESS);
+  end_tick = HAL_GetTick();
+  decap_time->decode += end_tick - start_tick;
 //  success_cond &= secure_cmp32(T, r_bits_vector_weight(&e.val[0]) +
 //                                    r_bits_vector_weight(&e.val[1]));
 
@@ -301,11 +329,15 @@ int crypto_kem_dec(OUT unsigned char *     ss,
     PE1_RAW(&e_prime)[i] = E1_RAW(&e)[i];
   }
 
-  GUARD(reencrypt(&m_prime, &e_prime, &l_ct));
+  GUARD(reencrypt(&m_prime, &e_prime, &l_ct, decap_time));
 
   // Check if H(m') is equal to (e0', e1')
   // (in constant-time)
+  start_tick = HAL_GetTick();
   GUARD(function_h(&e_tmp, &m_prime));
+  end_tick = HAL_GetTick();
+  decap_time->h += end_tick - start_tick;
+
   success_cond = secure_cmp(PE0_RAW(&e_prime), PE0_RAW(&e_tmp), R_BYTES);
   success_cond &= secure_cmp(PE1_RAW(&e_prime), PE1_RAW(&e_tmp), R_BYTES);
 
@@ -317,7 +349,7 @@ int crypto_kem_dec(OUT unsigned char *     ss,
   }
 
   // Generate the shared secret
-  GUARD(function_k(&l_ss, &m_prime, &l_ct));
+  GUARD(function_k(&l_ss, &m_prime, &l_ct, decap_time));
 
   // Copy the data into the output buffer
   bike_memcpy(ss, &l_ss, sizeof(l_ss));

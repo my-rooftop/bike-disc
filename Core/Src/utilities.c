@@ -8,18 +8,23 @@
 #include <inttypes.h>
 
 #include "utilities.h"
+#include "profiling.h"
 
 #define BITS_IN_QWORD 64ULL
 #define BITS_IN_BYTE  8ULL
 
-uint64_t r_bits_vector_weight(IN const r_t *in)
+uint64_t r_bits_vector_weight(IN const r_t *in, struct Trace_time *trace_time)
 {
+  uint32_t start_tick, end_tick;
+  start_tick = HAL_GetTick();
   uint64_t acc = 0;
   for(size_t i = 0; i < (R_BYTES - 1); i++) {
     acc += __builtin_popcount(in->raw[i]);
   }
 
   acc += __builtin_popcount(in->raw[R_BYTES - 1] & LAST_R_BYTE_MASK);
+  end_tick = HAL_GetTick();
+  trace_time->r_bits_vector_weight += end_tick - start_tick;
   return acc;
 }
 

@@ -179,7 +179,11 @@ void gf2x_mod_inv(OUT pad_r_t *c, IN const pad_r_t *a, struct Trace_time *trace_
     trace_time->inv_ring_mul += end - start;
 
     if(exp1_k[i] != 0) {
+      start = HAL_GetTick();
       repeated_squaring(&g, &t, exp1_k[i], &sec_buf);
+      end = HAL_GetTick();
+      trace_time->squaring += end - start;
+      
       start = HAL_GetTick();
       ring_mul_2(&t, &g, &ta);
       end = HAL_GetTick();

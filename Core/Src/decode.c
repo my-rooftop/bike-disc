@@ -133,11 +133,11 @@ _INLINE_ ret_t recompute_syndrome(OUT syndrome_t *syndrome,
   return SUCCESS;
 }
 
-_INLINE_ uint8_t get_threshold(IN const syndrome_t *s)
+_INLINE_ uint8_t get_threshold(IN const syndrome_t *s, struct Trace_time *trace_time)
 {
   bike_static_assert(sizeof(*s) >= sizeof(r_t), syndrome_is_large_enough);
 
-  const uint32_t syndrome_weight = r_bits_vector_weight((const r_t *)s->qw);
+  const uint32_t syndrome_weight = r_bits_vector_weight((const r_t *)s->qw, trace_time);
 
   // The equations below are defined in BIKE's specification p. 16, Section 5.2
   uint32_t       thr  = THRESHOLD_COEFF0 + (THRESHOLD_COEFF1 * syndrome_weight);
@@ -680,8 +680,11 @@ _INLINE_ void find_err1(OUT e_t *e,
                         OUT e_t *gray_e,
                         IN OUT syndrome_t *          syndrome,
                         IN const compressed_idx_d_ar_t wlist,
-                        IN const uint8_t               threshold)
+                        IN const uint8_t               threshold,
+                        struct Trace_time *decap_time)
 {
+  uint32_t start_tick, end_tick;
+  start_tick = HAL_GetTick();
   // This function uses the bit-slice-adder methodology of [5]:
   DEFER_CLEANUP(syndrome_t rotated_syndrome = {0}, syndrome_cleanup);
   DEFER_CLEANUP(upc_t upc, upc_cleanup);
@@ -729,6 +732,8 @@ _INLINE_ void find_err1(OUT e_t *e,
       gray_e->val[i].raw[j] = (~(black_e->val[i].raw[j])) & sum_msb;
     }
   }
+  end_tick = HAL_GetTick();
+  decap_time->find_err1 += end_tick - start_tick;
 }
 
 // Recalculate the UPCs and update the errors vector (e) according to it
@@ -737,8 +742,11 @@ _INLINE_ void find_err2(OUT e_t *e,
                         IN e_t * pos_e,
                         IN OUT syndrome_t *          syndrome,
                         IN const compressed_idx_d_ar_t wlist,
-                        IN const uint8_t               threshold)
+                        IN const uint8_t               threshold,
+                        struct Trace_time *decap_time)
 {
+  uint32_t start_tick, end_tick;
+  start_tick = HAL_GetTick();
   DEFER_CLEANUP(syndrome_t rotated_syndrome = {0}, syndrome_cleanup);
   DEFER_CLEANUP(upc_t upc, upc_cleanup);
 
@@ -768,6 +776,8 @@ _INLINE_ void find_err2(OUT e_t *e,
     // they are not included in the multiplication, and in the hash function.
     e->val[i].raw[R_BYTES - 1] &= LAST_R_BYTE_MASK;
   }
+  end_tick = HAL_GetTick();
+  decap_time->find_err2 += end_tick - start_tick;
 }
 
 ret_t decode(OUT e_t *e, IN const ct_t *ct, IN const sk_t *sk, struct Trace_time *decap_time)
@@ -799,14 +809,14 @@ ret_t decode(OUT e_t *e, IN const ct_t *ct, IN const sk_t *sk, struct Trace_time
   bike_memset(e, 0, sizeof(*e));
 
   for(uint32_t iter = 0; iter < MAX_IT; iter++) {
-    const uint8_t threshold = get_threshold(&s);
+    const uint8_t threshold = get_threshold(&s, decap_time);
 
     DMSG("    Iteration: %d\n", iter);
     DMSG("    Weight of e: %lu\n",
-         r_bits_vector_weight(&e->val[0]) + r_bits_vector_weight(&e->val[1]));
-    DMSG("    Weight of syndrome: %lu\n", r_bits_vector_weight((r_t *)s.qw));
+         r_bits_vector_weight(&e->val[0], decap_time) + r_bits_vector_weight(&e->val[1], decap_time));
+    DMSG("    Weight of syndrome: %lu\n", r_bits_vector_weight((r_t *)s.qw, decap_time));
 
-    find_err1(e, &black_e, &gray_e, &s, sk->wlist, threshold);
+    find_err1(e, &black_e, &gray_e, &s, sk->wlist, threshold, decap_time);
     GUARD(recompute_syndrome(&s, &c0, &th0, &pk, e, decap_time));
 #if defined(BGF_DECODER)
     if(iter >= 1) {
@@ -814,21 +824,21 @@ ret_t decode(OUT e_t *e, IN const ct_t *ct, IN const sk_t *sk, struct Trace_time
     }
 #endif
     DMSG("    Weight of e: %lu\n",
-         r_bits_vector_weight(&e->val[0]) + r_bits_vector_weight(&e->val[1]));
-    DMSG("    Weight of syndrome: %lu\n", r_bits_vector_weight((r_t *)s.qw));
+         r_bits_vector_weight(&e->val[0], decap_time) + r_bits_vector_weight(&e->val[1], decap_time));
+    DMSG("    Weight of syndrome: %lu\n", r_bits_vector_weight((r_t *)s.qw, decap_time));
 
-    find_err2(e, &black_e, &s, sk->wlist, ((D + 1) / 2) + 1);
+    find_err2(e, &black_e, &s, sk->wlist, ((D + 1) / 2) + 1, decap_time);
     GUARD(recompute_syndrome(&s, &c0, &th0, &pk, e, decap_time));
 
     DMSG("    Weight of e: %lu\n",
-         r_bits_vector_weight(&e->val[0]) + r_bits_vector_weight(&e->val[1]));
-    DMSG("    Weight of syndrome: %lu\n", r_bits_vector_weight((r_t *)s.qw));
+         r_bits_vector_weight(&e->val[0], decap_time) + r_bits_vector_weight(&e->val[1], decap_time));
+    DMSG("    Weight of syndrome: %lu\n", r_bits_vector_weight((r_t *)s.qw), decap_time);
 
-    find_err2(e, &gray_e, &s, sk->wlist, ((D + 1) / 2) + 1);
+    find_err2(e, &gray_e, &s, sk->wlist, ((D + 1) / 2) + 1, decap_time);
     GUARD(recompute_syndrome(&s, &c0, &th0, &pk, e, decap_time));
   }
 
-  if(r_bits_vector_weight((r_t *)s.qw) > 0) {
+  if(r_bits_vector_weight((r_t *)s.qw, decap_time) > 0) {
     BIKE_ERROR(E_DECODING_FAILURE);
   }
   return SUCCESS;

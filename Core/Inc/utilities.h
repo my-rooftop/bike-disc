@@ -12,7 +12,7 @@
 
 // For memset
 #include <string.h>
-
+#include "profiling.h"
 #include "types.h"
 
 #define ROTR64(x, s) (((x) >> (s)) | (x) << (64 - (s)))
@@ -35,7 +35,7 @@ _INLINE_ uint64_t bswap_64(uint64_t x)
 }
 #endif
 
-uint64_t r_bits_vector_weight(IN const r_t *in);
+uint64_t r_bits_vector_weight(IN const r_t *in, struct Trace_time *trace_time);
 
 // "VALUE_BARRIER returns |a|, but prevents GCC and Clang from reasoning about
 // the returned value. This is used to mitigate compilers undoing constant-time
